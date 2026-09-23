@@ -2465,6 +2465,7 @@ func mcpClientConfigToTable(clientConfig *schemas.MCPClientConfig) (configstoreT
 		Disabled:                  clientConfig.Disabled,
 		DiscoveredTools:           clientConfig.DiscoveredTools,
 		DiscoveredToolNameMapping: clientConfig.DiscoveredToolNameMapping,
+		DiscoveredInstructions:    clientConfig.DiscoveredInstructions,
 		PerUserHeaderKeys:         mcputils.CanonicalizeHeaderKeys(clientConfig.PerUserHeaderKeys),
 		TokenExchange:             clientConfig.TokenExchange,
 		PendingOAuthConfig:        clientConfig.PendingOAuthConfig,
