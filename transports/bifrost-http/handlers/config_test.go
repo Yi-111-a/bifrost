@@ -2,12 +2,17 @@ package handlers
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
@@ -147,6 +152,11 @@ func (r *proxyReloadRecorder) ReloadProxyConfig(_ context.Context, cfg *configta
 // "not yet supported" only hid a working feature. tcp has no dialer and stays refused.
 func TestUpdateProxyConfig_ProxyTypes(t *testing.T) {
 	SetLogger(&mockLogger{})
+	caServer := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	caServer.Close()
+	caPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caServer.Certificate().Raw}))
+	caJSON, err := sonic.Marshal(caPEM)
+	require.NoError(t, err)
 	for _, tc := range []struct {
 		name     string
 		body     string
@@ -166,6 +176,10 @@ func TestUpdateProxyConfig_ProxyTypes(t *testing.T) {
 		{"http with a non-numeric port", `{"enabled":true,"type":"http","url":"http://proxy.example:bad"}`, fasthttp.StatusBadRequest, "", ""},
 		{"http without a host", `{"enabled":true,"type":"http","url":"http://:3128"}`, fasthttp.StatusBadRequest, "", ""},
 		{"tcp", `{"enabled":true,"type":"tcp","url":"tcp://proxy.example:9000"}`, fasthttp.StatusBadRequest, "", ""},
+		// The proxy CA is stored as sent; one that is not a PEM certificate is refused
+		// rather than silently ignored by every client that would have trusted it.
+		{"https with a proxy CA", `{"enabled":true,"type":"http","url":"https://proxy.example:3129","ca_cert_pem":` + string(caJSON) + `}`, fasthttp.StatusOK, "http", "https://proxy.example:3129"},
+		{"proxy CA that is not PEM", `{"enabled":true,"type":"http","url":"https://proxy.example:3129","ca_cert_pem":"not a certificate"}`, fasthttp.StatusBadRequest, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := newRealOAuth2Store(t)
@@ -186,6 +200,10 @@ func TestUpdateProxyConfig_ProxyTypes(t *testing.T) {
 			assert.Equal(t, tc.wantType, string(stored.Type), "the proxy type must be persisted")
 			assert.Equal(t, tc.wantType, string(manager.reloaded.Type), "the proxy type must reach the runtime")
 			assert.Equal(t, tc.wantURL, stored.URL, "the proxy URL must be persisted trimmed")
+			if strings.Contains(tc.body, "ca_cert_pem") {
+				assert.Equal(t, caPEM, stored.CACertPEM, "the proxy CA must be persisted")
+				assert.Equal(t, caPEM, manager.reloaded.CACertPEM, "the proxy CA must reach the runtime")
+			}
 		})
 	}
 }
