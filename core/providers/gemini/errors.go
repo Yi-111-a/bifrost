@@ -60,6 +60,11 @@ func toGeminiStreamBifrostError(err error) *schemas.BifrostError {
 		}
 		ApplyRetryInfo(bifrostErr, apiErr.Err.Details)
 	}
+	// The payload did not parse as a typed API error, so it carries no status. Left nil
+	// it reaches metrics as a caller 400 and the retry loop cannot classify it.
+	if bifrostErr.StatusCode == nil {
+		bifrostErr.StatusCode = schemas.Ptr(fasthttp.StatusBadGateway)
+	}
 	return bifrostErr
 }
 

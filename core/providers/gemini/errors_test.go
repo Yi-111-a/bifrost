@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -145,5 +146,17 @@ func TestToGeminiStreamBifrostError_RetryInfo(t *testing.T) {
 	_, err = processGeminiStreamChunk([]byte(`{"error":{"code":429,"message":"Resource exhausted.","status":"RESOURCE_EXHAUSTED"}}`))
 	if got := toGeminiStreamBifrostError(err).ExtraFields.RetryAfter; got != 0 {
 		t.Errorf("expected no RetryAfter without RetryInfo, got %d", got)
+	}
+}
+
+// A stream error whose payload does not parse as a typed API error carries no status.
+// Left nil it reached metrics as a caller 400 and the retry loop could not classify it.
+func TestToGeminiStreamBifrostError_UnparsedPayloadGetsGatewayStatus(t *testing.T) {
+	err := toGeminiStreamBifrostError(errors.New("malformed stream payload"))
+	if err.StatusCode == nil {
+		t.Fatal("StatusCode is nil, want 502")
+	}
+	if *err.StatusCode != fasthttp.StatusBadGateway {
+		t.Fatalf("StatusCode = %d, want %d", *err.StatusCode, fasthttp.StatusBadGateway)
 	}
 }
