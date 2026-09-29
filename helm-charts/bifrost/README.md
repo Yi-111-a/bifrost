@@ -10,6 +10,7 @@ Official Helm charts for deploying [Bifrost](https://github.com/maximhq/bifrost)
 
 ### Upcoming
 
+- Added `bifrost.mcp.toolManagerConfig.maxInstructionsPerClient` and `.maxInstructionsTotal` (`max_instructions_per_client` / `max_instructions_total`) to bound forwarded MCP server instructions in bytes; 0 keeps the built-in defaults.
 - Added `instructions` and `instructions_mode` to `bifrost.mcp.virtualMcps[]` (renders `mcp.virtual_mcps[].instructions` / `.instructions_mode`) — model-facing guidance served with a Virtual MCP's tools, either appended to what its source servers advertise or replacing it.
 
 ### 2.1.43
